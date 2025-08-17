@@ -33,6 +33,15 @@ pub const Parser = struct {
         };
     }
 
+    fn previous(self: *Parser) lexer.Token {
+        if (self.i == 0) {
+            std.debug.print("{}: Out of bounds access from parser (called previous() on index 0)", .{error.InternalError});
+            std.process.abort();
+        }
+
+        return self.input[self.i - 1];
+    }
+
     fn current(self: *Parser) lexer.Token {
         if (self.i >= self.input.len) {
             std.debug.print("{}: Out of bounds access from parser. \n", .{error.InternalError});
@@ -51,32 +60,10 @@ pub const Parser = struct {
         return self.input[self.i + 1];
     }
 
-    // increments then gets
-    fn advance(self: *Parser) lexer.Token {
-        self.i += 1;
-        return self.current();
-    }
-
-    // gets then increments
-    fn consume(self: *Parser) lexer.Token {
-        const out = self.current();
-        self.i += 1;
-        return out;
-    }
-
-    fn matchCurr(self: *Parser, tokens: []const lexer.Token) bool {
+    fn matchAdvance(self: *Parser, tokens: []const lexer.Token) bool {
         for (tokens) |token| {
             if (std.mem.eql(u8, @tagName(self.current()), @tagName(token))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    fn matchNext(self: *Parser, tokens: []const lexer.Token) bool {
-        for (tokens) |token| {
-            if (std.mem.eql(u8, @tagName(self.peek()), @tagName(token))) {
+                self.i += 1;
                 return true;
             }
         }
@@ -111,7 +98,7 @@ pub const Parser = struct {
     fn comparison(self: *Parser) AST {
         var expr: AST = self.term();
 
-        if (self.matchNext(&[_]lexer.Token {
+        if (self.matchAdvance(&[_]lexer.Token {
             lexer.Token.EqualEqual, 
             lexer.Token.BangEqual, 
             lexer.Token.LeftCaret,
@@ -119,8 +106,7 @@ pub const Parser = struct {
             lexer.Token.RightCaret,
             lexer.Token.DoubleRightCaret
         })) {
-            const operator = self.advance();
-            self.i += 1;
+            const operator = self.previous();
             const rhs = self.term();
             expr = self.createBinary(expr, operator, rhs);
         }
@@ -131,9 +117,8 @@ pub const Parser = struct {
     fn term(self: *Parser) AST {
         var expr: AST = self.factor();
 
-        while (self.matchNext(&[_]lexer.Token{lexer.Token.Plus, lexer.Token.Minus})) {
-            const operator = self.advance();
-            self.i += 1;
+        while (self.matchAdvance(&[_]lexer.Token{lexer.Token.Plus, lexer.Token.Minus})) {
+            const operator = self.previous();
             const rhs = self.factor();
             expr = self.createBinary(expr, operator, rhs);
         }
@@ -144,9 +129,8 @@ pub const Parser = struct {
     fn factor(self: *Parser) AST {
         var expr: AST = self.unary();
 
-        while (self.matchNext(&[_]lexer.Token{lexer.Token.Star, lexer.Token.Slash, lexer.Token.Percent})) {
-            const operator = self.advance();
-            self.i += 1;
+        while (self.matchAdvance(&[_]lexer.Token{lexer.Token.Star, lexer.Token.Slash, lexer.Token.Percent})) {
+            const operator = self.previous();
             const rhs = self.unary();
             expr = self.createBinary(expr, operator, rhs);
         }
@@ -155,8 +139,8 @@ pub const Parser = struct {
     }
 
     fn unary(self: *Parser) AST { // TODO add stuff like & (address of) and .* (dereference)
-        if (self.matchCurr(&[_]lexer.Token{lexer.Token.Bang, lexer.Token.Minus})) {
-            const operator = self.consume();
+        if (self.matchAdvance(&[_]lexer.Token{lexer.Token.Bang, lexer.Token.Minus})) {
+            const operator = self.previous();
             
             const rhs = self.allocator.create(AST) catch self.handleAllocError("OutOfMemory");
             rhs.* = self.primary();
@@ -171,8 +155,9 @@ pub const Parser = struct {
     }
 
     fn primary(self: *Parser) AST {
-        const next = self.current();
-        return switch (next) {
+        const token = self.current();
+        self.i += 1;
+        return switch (token) {
             .IntLit => |n| AST{ .Int = n },
             .FloatLit => |f| AST { .Float = f },
             .Bool => |b| AST { .Bool = b },
