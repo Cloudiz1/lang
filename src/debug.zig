@@ -44,7 +44,7 @@ pub fn pprint(tree: parser.AST) void {
 }
 
 // print token helper for pprint
-fn pprintToken(token: lexer.Token) void {
+pub fn pprintToken(token: lexer.Token) void {
     switch (token) {
         .Plus => print("+"),
         .Minus => print("-"),
@@ -58,6 +58,13 @@ fn pprintToken(token: lexer.Token) void {
         .EqualEqual => print("=="),
         .BangEqual => print("!="),
         .Bang => print("!"),
+        .DoubleLeftCaret => print("<<"),
+        .DoubleRightCaret => print(">>"),
+        .Ampersand => print("&"),
+        .Pipe => print("|"),
+        .Caret => print("^"),
+        .DoubleAmpersand => print("&&"),
+        .DoublePipe => print("||"),
         else => {}
     }
 }

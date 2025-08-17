@@ -92,19 +92,74 @@ pub const Parser = struct {
     }
 
     fn expression(self: *Parser) AST {
-        return self.comparison();
+        return self.logicalOR();
+    }
+
+    fn logicalOR(self: *Parser) AST {
+        var expr: AST = self.logicalAND();
+
+        while (self.matchAdvance(&[_]lexer.Token{lexer.Token.DoublePipe})) {
+            const operator = self.previous();
+            const rhs = self.logicalAND();
+            expr = self.createBinary(expr, operator, rhs);
+        }
+
+        return expr;
+    }
+
+    fn logicalAND(self: *Parser) AST {
+        var expr: AST = self.comparison();
+
+        while (self.matchAdvance(&[_]lexer.Token{lexer.Token.DoubleAmpersand})) {
+            const operator = self.previous();
+            const rhs = self.comparison();
+            expr = self.createBinary(expr, operator, rhs);
+        }
+
+        return expr;
     }
 
     fn comparison(self: *Parser) AST {
-        var expr: AST = self.term();
+        var expr: AST = self.bitwise();
 
         if (self.matchAdvance(&[_]lexer.Token {
             lexer.Token.EqualEqual, 
             lexer.Token.BangEqual, 
             lexer.Token.LeftCaret,
-            lexer.Token.DoubleLeftCaret,
+            lexer.Token.LeftCaretEqual,
             lexer.Token.RightCaret,
-            lexer.Token.DoubleRightCaret
+            lexer.Token.RightCaretEqual
+        })) {
+            const operator = self.previous();
+            const rhs = self.bitwise();
+            expr = self.createBinary(expr, operator, rhs);
+        }
+
+        return expr;
+    }
+
+    fn bitwise(self: *Parser) AST {
+        var expr: AST = self.bitshift();
+
+        while (self.matchAdvance(&[_]lexer.Token {
+            lexer.Token.Ampersand,
+            lexer.Token.Pipe,
+            lexer.Token.Caret
+        })) {
+            const operator = self.previous();
+            const rhs = self.bitshift();
+            expr = self.createBinary(expr, operator, rhs);
+        }
+
+        return expr;
+    }
+
+    fn bitshift(self: *Parser) AST {
+        var expr: AST = self.term();
+
+        while (self.matchAdvance(&[_]lexer.Token {
+            lexer.Token.DoubleLeftCaret,
+            lexer.Token.DoubleRightCaret,
         })) {
             const operator = self.previous();
             const rhs = self.term();
@@ -139,11 +194,15 @@ pub const Parser = struct {
     }
 
     fn unary(self: *Parser) AST { // TODO add stuff like & (address of) and .* (dereference)
-        if (self.matchAdvance(&[_]lexer.Token{lexer.Token.Bang, lexer.Token.Minus})) {
+        if (self.matchAdvance(&[_]lexer.Token{
+            lexer.Token.Bang, 
+            lexer.Token.Minus,
+            lexer.Token.Ampersand
+        })) {
             const operator = self.previous();
             
             const rhs = self.allocator.create(AST) catch self.handleAllocError("OutOfMemory");
-            rhs.* = self.primary();
+            rhs.* = self.unary();
 
             return AST{ .Unary = .{
                 .operator = operator, 
@@ -164,14 +223,13 @@ pub const Parser = struct {
             .StringLit => |s| AST { .String = s },
 
             .LParen => { 
-                self.i += 1;
                 const expr = self.expression();
-                if (self.peek() != lexer.Token.RParen) { // todo definitely need better error handling later
+                if (self.current() != lexer.Token.RParen) { // todo definitely need better error handling later
                     std.debug.print("expected closing ')' after expression. \n", .{});
                     std.process.abort();
                 }
 
-                self.i += 1;
+                self.i += 1; // ignore RParen
                 return expr;
             },
             else => {
