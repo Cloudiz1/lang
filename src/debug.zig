@@ -20,34 +20,44 @@ pub fn printTokens(tokens: []const lexer.Token) void {
 
 pub const pprint = struct {
     i: u64,
-    input: AST.AST,
-    // out: [8192]u8,
 
     pub fn init() pprint {
         return .{
             .i = 0,  
-            // .out = undefined
         };
     }
 
-    // fn current(self: *pprint) AST.AST {
-    //     return self.input[self.i];
-    // }
+    fn printToken(self: *pprint, token: lexer.Token) void {
+        _ = self;
+        switch (token) {
+            .Plus => std.debug.print("+", .{}),
+            .Minus => std.debug.print("-", .{}),
+            .Star => std.debug.print("*", .{}),
+            .Slash => std.debug.print("/", .{}),
+            .Percent => std.debug.print("%", .{}),
+            else => {}
+        }
+    }
+
+    fn cprint(self: *pprint, c: u8) void {
+        _ = self;
+        std.debug.print("{c}", .{c});
+    }
 
     pub fn print(self: *pprint, tree: AST.AST) void {
-        _ = self;
         switch (tree) {
+            .Binary => {
+                self.cprint('(');
+                self.printToken(tree.Binary.operator);
+                self.cprint(' ');
+                self.print(tree.Binary.lhs.*);
+                self.cprint(' ');
+                self.print(tree.Binary.rhs.*);
+                self.cprint(')');
+            },
+            .Int => std.debug.print("{}", .{tree.Int}),
+            .Float => std.debug.print("{}", .{tree.Float}),
             else => {}
         }
     }
 };
-
-
-// fn stringifyAst(tree: AST.AST, buffer: *[]const u8) void {
-    
-// }
-
-// pub fn printAST(tree: AST.AST) void {
-//     const buffer: [8192]u8 = undefined;
-
-// }

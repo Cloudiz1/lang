@@ -20,8 +20,8 @@ pub fn main() !void {
 
     var parser = AST.Parser.init(allocator);
     const tree = parser.parse(tokens);
-    var pprint = debug.pprint.init(tree);
-    pprint.print();
+    var pprint = debug.pprint.init();
+    pprint.print(tree);
     // std.debug.print("{any}", .{expressions});
     // _ = tokens;
     // std.debug.print("{any}", .{tokens.items});
