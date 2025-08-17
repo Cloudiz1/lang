@@ -51,15 +51,30 @@ pub const Parser = struct {
         return self.input[self.i + 1];
     }
 
+    // increments then gets
     fn advance(self: *Parser) lexer.Token {
         self.i += 1;
+        return self.current();
+    }
+
+    // gets then increments
+    fn consume(self: *Parser) lexer.Token {
         const out = self.current();
+        self.i += 1;
         return out;
     }
 
+    fn matchCurr(self: *Parser, tokens: []const lexer.Token) bool {
+        for (tokens) |token| {
+            if (std.mem.eql(u8, @tagName(self.current()), @tagName(token))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     fn matchNext(self: *Parser, tokens: []const lexer.Token) bool {
-        // debug.printToken(self.peek());
-        // debug.printTokens(tokens);
         for (tokens) |token| {
             if (std.mem.eql(u8, @tagName(self.peek()), @tagName(token))) {
                 return true;
@@ -140,8 +155,8 @@ pub const Parser = struct {
     }
 
     fn unary(self: *Parser) AST { // TODO add stuff like & (address of) and .* (dereference)
-        if (self.matchNext(&[_]lexer.Token{lexer.Token.Bang, lexer.Token.Minus})) {
-            const operator = self.advance();
+        if (self.matchCurr(&[_]lexer.Token{lexer.Token.Bang, lexer.Token.Minus})) {
+            const operator = self.consume();
             
             const rhs = self.allocator.create(AST) catch self.handleAllocError("OutOfMemory");
             rhs.* = self.primary();

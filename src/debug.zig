@@ -1,6 +1,6 @@
 const std = @import("std");
 const lexer = @import("lexer.zig");
-const AST = @import("AST.zig");
+const parser = @import("parser.zig");
 
 pub fn printToken(token: lexer.Token) void {
     switch (token) {
@@ -18,46 +18,51 @@ pub fn printTokens(tokens: []const lexer.Token) void {
     }
 }
 
-pub const pprint = struct {
-    i: u64,
-
-    pub fn init() pprint {
-        return .{
-            .i = 0,  
-        };
+pub fn pprint(tree: parser.AST) void {
+    switch (tree) {
+        .Binary => {
+            print("(");
+            pprintToken(tree.Binary.operator);
+            print(" ");
+            pprint(tree.Binary.lhs.*);
+            print(" ");
+            pprint(tree.Binary.rhs.*);
+            print(")");
+        },
+        .Unary => {
+            // std.debug.print("{}", .{tree});
+            print("(");
+            pprintToken(tree.Unary.operator);
+            print(" ");
+            pprint(tree.Unary.rhs.*);
+            print(")");
+        },
+        .Int => std.debug.print("{}", .{tree.Int}),
+        .Float => std.debug.print("{}", .{tree.Float}),
+        else => {}
     }
+}
 
-    fn printToken(self: *pprint, token: lexer.Token) void {
-        _ = self;
-        switch (token) {
-            .Plus => std.debug.print("+", .{}),
-            .Minus => std.debug.print("-", .{}),
-            .Star => std.debug.print("*", .{}),
-            .Slash => std.debug.print("/", .{}),
-            .Percent => std.debug.print("%", .{}),
-            else => {}
-        }
+// print token helper for pprint
+fn pprintToken(token: lexer.Token) void {
+    switch (token) {
+        .Plus => print("+"),
+        .Minus => print("-"),
+        .Star => print("*"),
+        .Slash => print("/"),
+        .Percent => print("%"),
+        .LeftCaret => print("<"),
+        .LeftCaretEqual => print("<="),
+        .RightCaret => print(">"),
+        .RightCaretEqual => print(">="),
+        .EqualEqual => print("=="),
+        .BangEqual => print("!="),
+        .Bang => print("!"),
+        else => {}
     }
+}
 
-    fn cprint(self: *pprint, c: u8) void {
-        _ = self;
-        std.debug.print("{c}", .{c});
-    }
-
-    pub fn print(self: *pprint, tree: AST.AST) void {
-        switch (tree) {
-            .Binary => {
-                self.cprint('(');
-                self.printToken(tree.Binary.operator);
-                self.cprint(' ');
-                self.print(tree.Binary.lhs.*);
-                self.cprint(' ');
-                self.print(tree.Binary.rhs.*);
-                self.cprint(')');
-            },
-            .Int => std.debug.print("{}", .{tree.Int}),
-            .Float => std.debug.print("{}", .{tree.Float}),
-            else => {}
-        }
-    }
-};
+// just a shorthand used in pprint lol
+fn print(str: []const u8) void {
+    std.debug.print("{s}", .{str});
+}
