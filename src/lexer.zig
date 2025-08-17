@@ -36,44 +36,44 @@ pub const Token = union(enum) {
     // Arithmetic
     Plus,
     Minus, 
-    Mul,
-    Div, 
-    Mod, 
+    Star,
+    Slash, 
+    Percent, 
 
-    PlusEq,
-    MinusEq,
-    MulEq,
-    DivEq,
-    ModEq,
+    PlusEqual,
+    MinusEqual,
+    StarEqual,
+    SlashEqual,
+    PercentEqual,
 
     // Bitwise
-    BNot, // !
-    BAnd, // &
-    BOr, // |
-    BXor, // ^
-    BLShift, // <<
-    BRShift, // >>
+    Bang, // !
+    Ampersand, // &
+    Pipe, // |
+    Caret, // ^
+    DoubleLeftCaret, // <<
+    DoubleRightCaret, // >>
 
-    BNotEq, // !=
-    BAndEq, // &=
-    BOrEq, // |=
-    BXorEq, // ^=
-    BLShiftEq, // <<=
-    BRShiftEq, // >>=
+    BangEqual, // !=
+    AmpersandEqual, // &=
+    PipeEqual, // |=
+    CaretEqual, // ^=
+    DoubleLeftCaretEqual, // <<=
+    DoubleRightCaretEqual, // >>=
 
     // Conditional
-    IfEqual, // ==
-    IfAnd, // &&
-    IfOr, // ||
-    IfLesser, // <
-    IfGreater, // >
-    IfLesserEqual, // <=
-    IfGreaterEqual, // >=
+    EqualEqual, // ==
+    DoubleAmpersand, // &&
+    DoublePipe, // ||
+    LeftCaret, // <
+    RightCaret, // >
+    LeftCaretEqual, // <=
+    RightCaretEqual, // >=
 
     StringLit: []const u8,
     Identifier: []const u8,
-    IntLit: []const u8,
-    FloatLit: []const u8,
+    IntLit: i64,
+    FloatLit: f64,
     Bool: bool,
     EscChar: u8,
 
@@ -82,11 +82,12 @@ pub const Token = union(enum) {
     Newline,
     Tab,
 
-    Unknown: u8
+    Unknown: u8,
+    EOF
 };
 
 pub const Tokenizer = struct {
-    i: u8,
+    i: u64,
     input: []const u8,
     out: std.ArrayList(Token),
     keywords: std.StringHashMap(Token),
@@ -130,7 +131,6 @@ pub const Tokenizer = struct {
         return self.input[self.i + 1];
     }
 
-
     fn isDouble(self: *Tokenizer, c: u8) bool {
         if (self.peek()) |next| {
             if (next == c) return true;
@@ -168,7 +168,7 @@ pub const Tokenizer = struct {
     }
 
     fn scanNumber(self: *Tokenizer, c: u8) !Token {
-        var float: bool = false;
+        var isFloat: bool = false;
         var buffer = std.ArrayList(u8).init(self.allocator);
         defer buffer.deinit();
 
@@ -179,7 +179,7 @@ pub const Tokenizer = struct {
                 '0'...'9' => try buffer.append(next),
                 '.' => {
                     try buffer.append(next);
-                    float = true;
+                    isFloat = true;
                 },
                 else => break
             }
@@ -187,11 +187,13 @@ pub const Tokenizer = struct {
             self.i += 1;
         }
 
-        const val = try buffer.toOwnedSlice(); // hi val :3
-        if (float) {
-            return Token{ .FloatLit = val };
+        const slice = try buffer.toOwnedSlice(); 
+        if (isFloat) {
+            const float = try std.fmt.parseFloat(f64, slice);
+            return Token{ .FloatLit = float };
         } else {
-            return Token{ .IntLit = val };
+            const int = try std.fmt.parseInt(i64, slice, 10);
+            return Token{ .IntLit = int };
         }
     }
 
@@ -246,10 +248,10 @@ pub const Tokenizer = struct {
                     return Token{ .StringLit = "\\" };
                 }
             },
-            '=' => self.isNextEqual(Token.Equal, Token.IfEqual),
-            '+' => self.isNextEqual(Token.Plus, Token.PlusEq),
-            '-' => self.isNextEqual(Token.Minus, Token.MinusEq),
-            '*' => self.isNextEqual(Token.Mul, Token.MulEq),
+            '=' => self.isNextEqual(Token.Equal, Token.EqualEqual),
+            '+' => self.isNextEqual(Token.Plus, Token.PlusEqual),
+            '-' => self.isNextEqual(Token.Minus, Token.MinusEqual),
+            '*' => self.isNextEqual(Token.Star, Token.StarEqual),
             '/' => {
                 if (self.peek() == '/') {
                     self.i += 1;
@@ -260,25 +262,25 @@ pub const Tokenizer = struct {
                     }
                 }
 
-                return self.isNextEqual(Token.Div, Token.DivEq);
+                return self.isNextEqual(Token.Slash, Token.SlashEqual);
             },
-            '%' => self.isNextEqual(Token.Mod, Token.ModEq),
-            '!' => self.isNextEqual(Token.BNot, Token.BNotEq),
-            '^' => self.isNextEqual(Token.BXor, Token.BXorEq),
+            '%' => self.isNextEqual(Token.Percent, Token.PercentEqual),
+            '!' => self.isNextEqual(Token.Bang, Token.BangEqual),
+            '^' => self.isNextEqual(Token.Caret, Token.CaretEqual),
             '|' => {
                 if (self.isDouble(c)) {
                     self.i += 1;
-                    return Token.IfOr;
+                    return Token.DoublePipe;
                 } else {
-                    return self.isNextEqual(Token.BOr, Token.BOrEq);
+                    return self.isNextEqual(Token.Pipe, Token.PipeEqual);
                 }
             },
             '&' => {
                 if (self.isDouble(c)) {
                     self.i += 1;
-                    return Token.IfAnd;
+                    return Token.DoubleAmpersand;
                 } else {
-                    return self.isNextEqual(Token.BAnd, Token.BAndEq);
+                    return self.isNextEqual(Token.Ampersand, Token.AmpersandEqual);
                 }
             },
             '>' => {
@@ -287,12 +289,12 @@ pub const Tokenizer = struct {
 
                     if (self.peek() == '=') {
                         self.i += 1;
-                        return Token.BRShiftEq;
+                        return Token.DoubleRightCaretEqual;
                     }
 
-                    return Token.BRShift;
+                    return Token.DoubleRightCaret;
                 } else {
-                    return self.isNextEqual(Token.IfGreater, Token.IfGreaterEqual);
+                    return self.isNextEqual(Token.RightCaret, Token.RightCaretEqual);
                 }
             },
             '<' => {
@@ -301,12 +303,12 @@ pub const Tokenizer = struct {
 
                     if (self.peek() == '=') {
                         self.i += 1;
-                        return Token.BLShiftEq;
+                        return Token.DoubleLeftCaretEqual;
                     }
                     
-                    return Token.BLShift;
+                    return Token.DoubleLeftCaret;
                 } else {
-                    return self.isNextEqual(Token.IfLesser, Token.IfLesserEqual);
+                    return self.isNextEqual(Token.LeftCaret, Token.LeftCaretEqual);
                 }
             },
             'a'...'z', 'A'...'Z' => {
@@ -353,6 +355,7 @@ pub const Tokenizer = struct {
             self.i += 1;
         }
 
+        try self.out.append(Token.EOF);
         return self.out.items;
     }
-};
+};  
