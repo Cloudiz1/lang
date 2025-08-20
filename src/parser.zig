@@ -13,6 +13,10 @@ pub const AST = union(enum) {
         operator: lexer.Token,
         rhs: *AST
     },
+    Postfix: struct {
+        lhs: *AST,
+        operator: lexer.Token,
+    },
     Binary: struct {
         lhs: *AST,
         operator: lexer.Token,
@@ -60,15 +64,20 @@ pub const Parser = struct {
         return self.input[self.i + 1];
     }
 
-    fn matchAdvance(self: *Parser, tokens: []const lexer.Token) bool {
+    fn match(self: *Parser, tokens: []const lexer.Token) bool {
         for (tokens) |token| {
             if (std.mem.eql(u8, @tagName(self.current()), @tagName(token))) {
-                self.i += 1;
                 return true;
             }
         }
 
         return false;
+    }
+
+    fn matchAdvance(self: *Parser, tokens: []const lexer.Token) bool {
+        const out = self.match(tokens);
+        if (out) self.i += 1;
+        return out;
     }
 
     fn handleAllocError(self: *Parser, e: []const u8) *AST {
@@ -210,7 +219,34 @@ pub const Parser = struct {
             }};
         }
 
-        return self.primary();
+        return self.postfix();
+    }
+
+    fn postfix(self: *Parser) AST {
+        var expr = self.primary();
+        
+        if (self.match(&[_]lexer.Token {
+            lexer.Token.Dot,
+            lexer.Token.DotStar,
+            lexer.Token.LBrace,
+            lexer.Token.LParen,
+        })) {
+            const token = self.current();
+            switch (token) {
+                .DotStar => {
+                    const lhs = self.allocator.create(AST) catch self.handleAllocError("OutOfMemory");
+                    lhs.* = expr;
+
+                    expr = AST{ .Postfix = .{
+                        .operator = token,
+                        .lhs = lhs
+                    }};
+                },
+                else => |a| std.debug.print("{} {}", .{a, expr})
+            }
+        }
+
+        return expr;
     }
 
     fn primary(self: *Parser) AST {
@@ -220,7 +256,7 @@ pub const Parser = struct {
             .IntLit => |n| AST{ .Int = n },
             .FloatLit => |f| AST { .Float = f },
             .Bool => |b| AST { .Bool = b },
-            .StringLit => |s| AST { .String = s },
+            .StringLit, .Identifier => |s| AST { .String = s },
 
             .LParen => { 
                 const expr = self.expression();

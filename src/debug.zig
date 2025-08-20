@@ -30,16 +30,23 @@ pub fn pprint(tree: parser.AST) void {
             print(")");
         },
         .Unary => {
-            // std.debug.print("{}", .{tree});
             print("(");
             pprintToken(tree.Unary.operator);
             print(" ");
             pprint(tree.Unary.rhs.*);
             print(")");
         },
+        .Postfix => {
+            print("(");
+            pprintToken(tree.Postfix.operator);
+            print(" ");
+            pprint(tree.Postfix.lhs.*);
+            print(")");
+        },
         .Int => std.debug.print("{}", .{tree.Int}),
         .Float => std.debug.print("{}", .{tree.Float}),
-        else => {}
+        .String => print(tree.String),
+        else => std.debug.print("{}", .{tree})
     }
 }
 
@@ -65,7 +72,8 @@ pub fn pprintToken(token: lexer.Token) void {
         .Caret => print("^"),
         .DoubleAmpersand => print("&&"),
         .DoublePipe => print("||"),
-        else => {}
+        .DotStar => print(".*"),
+        else => std.debug.print("{}", .{token})
     }
 }
 

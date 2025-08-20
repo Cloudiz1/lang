@@ -18,6 +18,8 @@ pub fn main() !void {
     var tokenizer = try lexer.Tokenizer.init(allocator);
     const tokens = try tokenizer.tokenize(buffer);
 
+    // debug.printTokens(tokens);
+
     var parser = parserMod.Parser.init(allocator);
     const tree = parser.parse(tokens);
     debug.pprint(tree);

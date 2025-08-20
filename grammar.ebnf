@@ -8,7 +8,8 @@ bitwise = bitshift { ('&' | '|' | '^') bitshift };
 bitshift = term { ( '<<' | '>>' ) term };
 term = factor { ( '+' | '-' ) factor };
 factor = unary { ( '*' | '/' | '%' ) unary };
-unary = ('!' | '-' | '&') (unary | primary);
+unary = ('!' | '-' | '&') (unary | postfix);
+postfix = primary {'.' identifier | '.*' | '[' expr ']' | '(' args ')' };
 primary = '(' expr ')' | primative;
 
 comparisonOperator = '>' | '>=' | '<' | '<=' | '==' | '!=';

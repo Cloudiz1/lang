@@ -13,6 +13,7 @@ pub const Token = union(enum) {
     Semicolon,
     Colon,
     Equal,
+    DotStar,
 
     // keywords 
     Let,
@@ -238,7 +239,14 @@ pub const Tokenizer = struct {
             ']' => Token.RBrace,
             '{' => Token.LCurly,
             '}' => Token.RCurly,
-            '.' => Token.Dot,
+            '.' => {
+                if (self.peek() == '*') {
+                    self.i += 1;
+                    return Token.DotStar;
+                }
+
+                return Token.Dot;
+            },
             ',' => Token.Comma,
             '\\' => {
                 if (self.peek()) |next| {
