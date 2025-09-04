@@ -5,7 +5,7 @@ pub const Token = union(enum) {
     LParen,
     RParen,
     LBrace,
-    RBrace, 
+    RBrace,
     LCurly,
     RCurly,
     Dot,
@@ -15,7 +15,7 @@ pub const Token = union(enum) {
     Equal,
     DotStar,
 
-    // keywords 
+    // keywords
     Let,
     Const,
     Fn,
@@ -27,19 +27,19 @@ pub const Token = union(enum) {
     Case,
     While,
     Do,
-    For, 
+    For,
     Break,
     Continue,
     Return,
-    True, 
+    True,
     False,
 
     // Arithmetic
     Plus,
-    Minus, 
+    Minus,
     Star,
-    Slash, 
-    Percent, 
+    Slash,
+    Percent,
 
     PlusEqual,
     MinusEqual,
@@ -84,7 +84,7 @@ pub const Token = union(enum) {
     Tab,
 
     Unknown: u8,
-    EOF
+    EOF,
 };
 
 pub const Tokenizer = struct {
@@ -115,19 +115,13 @@ pub const Tokenizer = struct {
         try map.put("true", Token{ .Bool = true });
         try map.put("false", Token{ .Bool = false });
 
-        return .{ 
-            .i = 0, 
-            .input = "", 
-            .out = std.ArrayList(Token).init(allocator), 
-            .keywords = map, 
-            .allocator = allocator 
-        };
+        return .{ .i = 0, .input = "", .out = std.ArrayList(Token).init(allocator), .keywords = map, .allocator = allocator };
     }
 
     fn peek(self: *Tokenizer) ?u8 {
         if (self.i + 1 >= self.input.len) {
-            return null;    
-        }    
+            return null;
+        }
 
         return self.input[self.i + 1];
     }
@@ -161,7 +155,7 @@ pub const Tokenizer = struct {
                     try buffer.append(next);
                     self.i += 1;
                 },
-                else => break
+                else => break,
             }
         }
 
@@ -182,13 +176,13 @@ pub const Tokenizer = struct {
                     try buffer.append(next);
                     isFloat = true;
                 },
-                else => break
+                else => break,
             }
 
             self.i += 1;
         }
 
-        const slice = try buffer.toOwnedSlice(); 
+        const slice = try buffer.toOwnedSlice();
         if (isFloat) {
             const float = try std.fmt.parseFloat(f64, slice);
             return Token{ .FloatLit = float };
@@ -208,7 +202,7 @@ pub const Tokenizer = struct {
                 const str = try buffer.toOwnedSlice();
                 return Token{ .StringLit = str };
             }
-            
+
             if (next == '\\') { // escaped characters in stringLits
                 self.i += 1;
 
@@ -217,7 +211,7 @@ pub const Tokenizer = struct {
                         'n' => try buffer.append('\n'),
                         'r' => try buffer.append('\r'),
                         't' => try buffer.append('\t'),
-                        else => try buffer.append(c) // todo report error here instead of blinding appending the next character
+                        else => try buffer.append(c), // todo report error here instead of blinding appending the next character
                     }
 
                     self.i += 1;
@@ -232,7 +226,7 @@ pub const Tokenizer = struct {
     }
 
     fn getToken(self: *Tokenizer, c: u8) ?Token {
-        return switch(c) {
+        return switch (c) {
             '(' => Token.LParen,
             ')' => Token.RParen,
             '[' => Token.LBrace,
@@ -313,7 +307,7 @@ pub const Tokenizer = struct {
                         self.i += 1;
                         return Token.DoubleLeftCaretEqual;
                     }
-                    
+
                     return Token.DoubleLeftCaret;
                 } else {
                     return self.isNextEqual(Token.LeftCaret, Token.LeftCaretEqual);
@@ -329,7 +323,7 @@ pub const Tokenizer = struct {
                     const token = self.keywords.get(str);
                     self.allocator.free(str);
                     return token;
-                } else return Token { .Identifier = str };
+                } else return Token{ .Identifier = str };
             },
             '0'...'9' => {
                 return self.scanNumber(c) catch |err| {
@@ -341,21 +335,21 @@ pub const Tokenizer = struct {
                 return self.scanStr(c) catch |err| {
                     switch (err) {
                         error.missingClosingQuote => std.debug.print("Missing closing brace", .{}), // TODO eventually add better error handling (whenever i decide to add an error class yknow)
-                        else => std.debug.print("{any}", .{err})
+                        else => std.debug.print("{any}", .{err}),
                     }
 
                     std.process.exit(2);
                 };
             },
             ' ', '\n', '\t', '\r' => null,
-            else => Token{ .Unknown = c }
+            else => Token{ .Unknown = c },
         };
     }
 
     pub fn tokenize(self: *Tokenizer, input: []const u8) ![]const Token {
         self.input = input;
 
-        while(self.i < self.input.len) {
+        while (self.i < self.input.len) {
             if (self.getToken(self.input[self.i])) |token| {
                 try self.out.append(token);
             }
@@ -366,4 +360,36 @@ pub const Tokenizer = struct {
         try self.out.append(Token.EOF);
         return self.out.items;
     }
-};  
+
+    pub fn deinit(self: *Tokenizer) void {
+        for (self.out.items) |token| {
+            switch (token) {
+                .StringLit, .Identifier => |val| self.allocator.free(val), // hi val!! :3
+                // .IntLit => |val| self.allocator.free(val),
+                // .FloatLit => |val| self.allocator.free(val),
+                else => {},
+            }
+        }
+
+        self.keywords.deinit();
+        self.out.deinit();
+    }
+};
+
+pub fn lexerT(input: []const u8, expected: []const Token) !void {
+    const allocator = std.testing.allocator;
+    var tokenizer = try Tokenizer.init(allocator);
+    const tokens = try tokenizer.tokenize(input);
+    const debug = @import("debug.zig");
+    debug.printTokens(tokens);
+
+    for (expected, tokens) |expectedT, T| {
+        try std.testing.expectEqual(expectedT, T);
+    }
+
+    tokenizer.deinit();
+}
+
+test {
+    try lexerT("true", &[_]Token{ Token{ .Bool = true }, Token.EOF });
+}
