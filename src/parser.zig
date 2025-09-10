@@ -3,10 +3,26 @@ const lexer = @import("lexer.zig");
 const debug = @import("debug.zig");
 // const ast = @import("ast.zig");
 
-pub const AST = union(enum) { Int: i64, Float: f64, String: []const u8, Char: u8, Bool: bool, Unary: struct { operator: lexer.Token, rhs: *AST }, Postfix: struct {
-    lhs: *AST,
-    operator: lexer.Token,
-}, Binary: struct { lhs: *AST, operator: lexer.Token, rhs: *AST } };
+pub const AST = union(enum) {
+    Int: i64,
+    Float: f64,
+    String: []const u8,
+    Char: u8,
+    Bool: bool,
+    Unary: struct {
+        operator: lexer.Token,
+        rhs: *AST,
+    },
+    Postfix: struct {
+        lhs: *AST,
+        operator: lexer.Token,
+    },
+    Binary: struct {
+        lhs: *AST,
+        operator: lexer.Token,
+        rhs: *AST,
+    },
+};
 
 pub const Parser = struct {
     input: []const lexer.Token,
@@ -167,7 +183,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn unary(self: *Parser) AST { // TODO add stuff like & (address of) and .* (dereference)
+    fn unary(self: *Parser) AST { // TODO: add stuff like & (address of) and .* (dereference)
         if (self.matchAdvance(&[_]lexer.Token{ lexer.Token.Bang, lexer.Token.Minus, lexer.Token.Ampersand })) {
             const operator = self.previous();
 

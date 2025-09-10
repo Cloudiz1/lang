@@ -41,12 +41,6 @@ pub const Token = union(enum) {
     Slash,
     Percent,
 
-    PlusEqual,
-    MinusEqual,
-    StarEqual,
-    SlashEqual,
-    PercentEqual,
-
     // Bitwise
     Bang, // !
     Ampersand, // &
@@ -54,6 +48,13 @@ pub const Token = union(enum) {
     Caret, // ^
     DoubleLeftCaret, // <<
     DoubleRightCaret, // >>
+
+    // Assignment
+    PlusEqual,
+    MinusEqual,
+    StarEqual,
+    SlashEqual,
+    PercentEqual,
 
     BangEqual, // !=
     AmpersandEqual, // &=
@@ -242,6 +243,8 @@ pub const Tokenizer = struct {
                 return Token.Dot;
             },
             ',' => Token.Comma,
+            ';' => Token.Semicolon,
+            ':' => Token.Colon,
             '\\' => {
                 if (self.peek()) |next| {
                     self.i += 1;
@@ -331,10 +334,10 @@ pub const Tokenizer = struct {
                     std.process.exit(2);
                 };
             },
-            '\'', '\"' => {
+            '\"' => { // TODO: I guess i forgot to implement chars too???? im really good at this whole programming thing
                 return self.scanStr(c) catch |err| {
                     switch (err) {
-                        error.missingClosingQuote => std.debug.print("Missing closing brace", .{}), // TODO eventually add better error handling (whenever i decide to add an error class yknow)
+                        error.missingClosingQuote => std.debug.print("Missing closing brace", .{}), // TODO: eventually add better error handling (whenever i decide to add an error class yknow)
                         else => std.debug.print("{any}", .{err}),
                     }
 
@@ -365,8 +368,6 @@ pub const Tokenizer = struct {
         for (self.out.items) |token| {
             switch (token) {
                 .StringLit, .Identifier => |val| self.allocator.free(val), // hi val!! :3
-                // .IntLit => |val| self.allocator.free(val),
-                // .FloatLit => |val| self.allocator.free(val),
                 else => {},
             }
         }
@@ -376,20 +377,137 @@ pub const Tokenizer = struct {
     }
 };
 
-pub fn lexerT(input: []const u8, expected: []const Token) !void {
+fn lexerT(input: []const u8, expected: []const Token) !void {
     const allocator = std.testing.allocator;
     var tokenizer = try Tokenizer.init(allocator);
     const tokens = try tokenizer.tokenize(input);
-    const debug = @import("debug.zig");
-    debug.printTokens(tokens);
 
     for (expected, tokens) |expectedT, T| {
-        try std.testing.expectEqual(expectedT, T);
+        switch (T) {
+            .Identifier => |val| try std.testing.expectEqualStrings(val, expectedT.Identifier),
+            .StringLit => |val| try std.testing.expectEqualStrings(val, expectedT.StringLit),
+            else => try std.testing.expectEqual(expectedT, T),
+        }
     }
 
     tokenizer.deinit();
 }
 
-test {
-    try lexerT("true", &[_]Token{ Token{ .Bool = true }, Token.EOF });
+fn debugLexer(input: []const u8) !void {
+    const allocator = std.testing.allocator;
+    var tokenizer = try Tokenizer.init(allocator);
+    const tokens = try tokenizer.tokenize(input);
+
+    for (tokens) |token| {
+        std.debug.print("{any} ", .{token});
+    }
+
+    std.debug.print("\n\npretty print: \n", .{});
+    const debug = @import("debug.zig");
+    debug.printTokens(tokens);
+
+    tokenizer.deinit();
+}
+
+test "Keywords" {
+    try lexerT("let const pub fn if else switch case while do for break continue return true false", &[_]Token{
+        Token.Let,
+        Token.Const,
+        Token.Pub,
+        Token.Fn,
+        Token.If,
+        Token.Else,
+        Token.Switch,
+        Token.Case,
+        Token.While,
+        Token.Do,
+        Token.For,
+        Token.Break,
+        Token.Continue,
+        Token.Return,
+        Token{ .Bool = true },
+        Token{ .Bool = false },
+        Token.EOF,
+    });
+}
+
+test "General Syntax" {
+    try lexerT("()[]{}.,;:=.*", &[_]Token{
+        Token.LParen,
+        Token.RParen,
+        Token.LBrace,
+        Token.RBrace,
+        Token.LCurly,
+        Token.RCurly,
+        Token.Dot,
+        Token.Comma,
+        Token.Semicolon,
+        Token.Colon,
+        Token.Equal,
+        Token.DotStar,
+        Token.EOF,
+    });
+}
+
+test "Arithmetic" {
+    try lexerT("+ - * / % ! & | ^ << >>", &[_]Token{
+        Token.Plus,
+        Token.Minus,
+        Token.Star,
+        Token.Slash,
+        Token.Percent,
+        Token.Bang,
+        Token.Ampersand,
+        Token.Pipe,
+        Token.Caret,
+        Token.DoubleLeftCaret,
+        Token.DoubleRightCaret,
+        Token.EOF,
+    });
+}
+
+test "Assignment" {
+    try lexerT("+= -= *= /= %= != &= |= ^= <<= >>=", &[_]Token{
+        Token.PlusEqual,
+        Token.MinusEqual,
+        Token.StarEqual,
+        Token.SlashEqual,
+        Token.PercentEqual,
+        Token.BangEqual,
+        Token.AmpersandEqual,
+        Token.PipeEqual,
+        Token.CaretEqual,
+        Token.DoubleLeftCaretEqual,
+        Token.DoubleRightCaretEqual,
+        Token.EOF,
+    });
+}
+
+test "Conditional" {
+    try lexerT("== && || < > <= >=", &[_]Token{
+        Token.EqualEqual,
+        Token.DoubleAmpersand,
+        Token.DoublePipe,
+        Token.LeftCaret,
+        Token.RightCaret,
+        Token.LeftCaretEqual,
+        Token.RightCaretEqual,
+        Token.EOF,
+    });
+}
+
+test "Strings, Identifiers, and Escaped characters" {
+    try lexerT("const foo = \"test string.\";", &[_]Token{
+        Token.Const,
+        Token{ .Identifier = "foo" },
+        Token.Equal,
+        Token{ .StringLit = "test string." },
+        Token.Semicolon,
+        Token.EOF,
+    });
+
+    try lexerT("\"abc \n \\\"abc\\\"\"", &[_]Token{
+        Token{ .StringLit = "abc \n \"abc\"" },
+        Token.EOF,
+    });
 }
